@@ -753,7 +753,64 @@ function createCustomSymbolSetting(symbol, index) {
         deleteCustomSymbol(index);
     });
 }
-insertCustomSymbol
+// 插入自定义符号（最终修正版）
+function insertCustomSymbol(symbol) {
+    if (!extension_settings[extensionName].enabled) return;
+
+    const textarea = getMessageInput();
+    const startPos = textarea.prop("selectionStart");
+    const endPos = textarea.prop("selectionEnd");
+    const text = textarea.val();
+
+    const beforeText = text.substring(0, startPos);
+    const afterText = text.substring(endPos);
+
+    // 关键修改：严格转换所有\n为换行符（包括转义符和字面量）
+    const processedSymbol = symbol.symbol
+        .replace(/\\n/g, '\n')   // 处理转义的\n
+        .replace(/([^\\]|^)n/g, '$1\n'); // 处理单独输入的/n（假设是用户输入错误）
+
+    // 插入处理后的符号
+    const newText = beforeText + processedSymbol + afterText;
+    textarea.val(newText);
+
+    // 计算实际插入长度（考虑换行符占1个字符）
+    const insertedLength = processedSymbol.length;
+
+    // 设置光标位置（新增换行符感知逻辑）
+    setTimeout(() => {
+        let cursorPos = startPos;
+
+        // 获取光标位置策略
+        const strategy = symbol.cursorPos || 'end';
+
+        switch(strategy) {
+            case 'start':
+                cursorPos = startPos;
+                break;
+            case 'end':
+                cursorPos = startPos + insertedLength;
+                break;
+            case 'middle':
+                cursorPos = startPos + Math.floor(insertedLength / 2);
+                break;
+            default:
+                // 智能处理含换行符的情况
+                if (processedSymbol.includes('\n')) {
+                    // 自动定位到最后一个换行符之后
+                    const lastNewline = processedSymbol.lastIndexOf('\n');
+                    cursorPos = startPos + lastNewline + 1;
+                } else {
+                    cursorPos = startPos + (parseInt(strategy) || 0);
+                }
+        }
+
+        textarea.prop("selectionStart", cursorPos);
+        textarea.prop("selectionEnd", cursorPos);
+        textarea.focus();
+    }, 0);
+}
+
 // 编辑自定义符号
 function editCustomSymbol(index) {
     const symbols = extension_settings[extensionName].customSymbols;
@@ -906,6 +963,10 @@ function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
     $("#custom_symbol_save").on("click", function() {
         const name = $("#custom_symbol_name").val().trim();
         const symbol = $("#custom_symbol_symbol").val();
+        // 新增：转换所有\n为真实换行符（包括转义和直接输入）
+        symbol = symbol.replace(/\\n/g, '\n'); // 处理转义的\n
+                        .replace(/([^\\]|^)n/g, '$1\n'); // 兼容用户误输/n的情况
+
         const display = $("#custom_symbol_display").val() || symbol;
         let cursorPos = $("#custom_symbol_cursor").val();
         
