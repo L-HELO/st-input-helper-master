@@ -755,7 +755,7 @@ function createCustomSymbolSetting(symbol, index) {
 }
 
 // 插入自定义符号
-// 替换这个函数 
+// 替换这个函数 // 修改后的 insertCustomSymbol 函数 
 function insertCustomSymbol(symbol) {
     if (!extension_settings[extensionName].enabled) return;
     
@@ -770,48 +770,58 @@ function insertCustomSymbol(symbol) {
     
     // 处理符号中的 \n 换行符 
     let processedSymbol = symbol.symbol; 
-    let hasNewline = false;
     
     // 检查符号中是否包含 \n 
     if (processedSymbol.includes("\\n"))  {
-        hasNewline = true;
-        // 替换 \n 为实际的换行符 
-        processedSymbol = processedSymbol.replace(/\\n/g,  "\n");
-    }
-    
-    // 插入符号 
-    const newText = beforeText + processedSymbol + afterText;
-    textarea.val(newText); 
-    
-    // 设置光标位置 
-    setTimeout(() => {
-        // 计算光标位置 
-        let cursorPos = startPos;
+        // 分割符号为两部分：\n前和\n后 
+        const parts = processedSymbol.split("\\n"); 
         
-        if (symbol.cursorPos  === "start") {
-            cursorPos = startPos;
-        } else if (symbol.cursorPos  === "end") {
-            cursorPos = startPos + processedSymbol.length; 
-        } else if (symbol.cursorPos  === "middle") {
-            cursorPos = startPos + Math.floor(processedSymbol.length  / 2);
-        } else {
-            // 具体位置 
-            cursorPos = startPos + parseInt(symbol.cursorPos)  || startPos;
+        // 第一部分插入到当前光标位置 
+        const firstPart = parts[0];
+        // 第二部分将在换行后插入 
+        const secondPart = parts.slice(1).join("\\n"); 
+        
+        // 查找当前行的末尾位置（模仿insertNewLine的行为）
+        let lineEnd = text.indexOf("\n",  startPos);
+        if (lineEnd === -1) {
+            lineEnd = text.length; 
         }
         
-        // 如果有换行符，将光标放在换行符之后 
-        if (hasNewline) {
-            // 找到第一个换行符的位置 
-            const newlinePos = processedSymbol.indexOf("\n"); 
-            if (newlinePos !== -1) {
-                cursorPos = startPos + newlinePos + 1;
+        // 构建新文本：第一部分 + 换行 + 第二部分 
+        const newText = beforeText + firstPart + "\n" + secondPart + afterText;
+        textarea.val(newText); 
+        
+        // 设置光标位置在换行后的第二部分开始处 
+        setTimeout(() => {
+            const newCursorPos = startPos + firstPart.length  + 1; // +1 for the newline 
+            textarea.prop("selectionStart",  newCursorPos);
+            textarea.prop("selectionEnd",  newCursorPos);
+            textarea.focus(); 
+        }, 0);
+    } else {
+        // 没有换行符的情况，保持原样插入 
+        const newText = beforeText + processedSymbol + afterText;
+        textarea.val(newText); 
+        
+        // 设置光标位置 
+        setTimeout(() => {
+            let cursorPos = startPos;
+            
+            if (symbol.cursorPos  === "start") {
+                cursorPos = startPos;
+            } else if (symbol.cursorPos  === "end") {
+                cursorPos = startPos + processedSymbol.length; 
+            } else if (symbol.cursorPos  === "middle") {
+                cursorPos = startPos + Math.floor(processedSymbol.length  / 2);
+            } else {
+                cursorPos = startPos + parseInt(symbol.cursorPos)  || startPos;
             }
-        }
-        
-        textarea.prop("selectionStart",  cursorPos);
-        textarea.prop("selectionEnd",  cursorPos);
-        textarea.focus(); 
-    }, 0);
+            
+            textarea.prop("selectionStart",  cursorPos);
+            textarea.prop("selectionEnd",  cursorPos);
+            textarea.focus(); 
+        }, 0);
+    }
 }
 
 // 编辑自定义符号
