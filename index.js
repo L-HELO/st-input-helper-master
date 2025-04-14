@@ -58,9 +58,10 @@ const shortcutFunctionMap = {
     'bookQuotes1': insertBookQuotes1,
     'bookQuotes2': insertBookQuotes2,
     'bookQuotes3': insertBookQuotes3,
-    'newline': insertNewLine,
+    'newline': insertNewLine, // This is for the BUTTON/SHORTCUT, not typed input
     'user': insertUserTag,
     'char': insertCharTag
+    // Custom symbols will be added dynamically
 };
 
 // 加载插件设置
@@ -69,30 +70,24 @@ async function loadSettings() {
     if (Object.keys(extension_settings[extensionName]).length === 0) {
         Object.assign(extension_settings[extensionName], defaultSettings);
     }
-    
+
     // 兼容旧版本设置
     if (!extension_settings[extensionName].buttons) {
         extension_settings[extensionName].buttons = defaultSettings.buttons;
     }
-
-    // 兼容旧版本设置 - 快捷键
     if (!extension_settings[extensionName].shortcuts) {
         extension_settings[extensionName].shortcuts = defaultSettings.shortcuts;
     }
-    
-    // 兼容旧版本设置 - 按钮顺序
     if (!extension_settings[extensionName].buttonOrder) {
         extension_settings[extensionName].buttonOrder = defaultSettings.buttonOrder;
     }
-
-    // 兼容旧版本设置 - 自定义符号
     if (!extension_settings[extensionName].customSymbols) {
         extension_settings[extensionName].customSymbols = [];
     }
 
     // 更新UI中的设置
     $("#enable_input_helper").prop("checked", extension_settings[extensionName].enabled);
-    
+
     // 更新按钮显示设置
     const buttons = extension_settings[extensionName].buttons;
     $("#enable_asterisk_btn").prop("checked", buttons.asterisk !== false);
@@ -100,34 +95,36 @@ async function loadSettings() {
     $("#enable_parentheses_btn").prop("checked", buttons.parentheses !== false);
     $("#enable_book_quotes1_btn").prop("checked", buttons.bookQuotes1 !== false);
     $("#enable_book_quotes2_btn").prop("checked", buttons.bookQuotes2 !== false);
-    $("#enable_book_quotes3_btn").prop("checked", buttons.bookQuotes3 !== false); // 新增书名号按钮设置
+    $("#enable_book_quotes3_btn").prop("checked", buttons.bookQuotes3 !== false);
     $("#enable_newline_btn").prop("checked", buttons.newline !== false);
     $("#enable_user_btn").prop("checked", buttons.user !== false);
     $("#enable_char_btn").prop("checked", buttons.char !== false);
-    
+
     // 更新快捷键设置
     const shortcuts = extension_settings[extensionName].shortcuts;
     for (const key in shortcuts) {
-        $(`#shortcut_${key}`).val(shortcuts[key] || "");
+        if ($(`#shortcut_${key}`).length) { // Check if element exists before setting val
+            $(`#shortcut_${key}`).val(shortcuts[key] || "");
+        }
     }
-    
+
     // 更新按钮顺序
     updateButtonsOrder();
-    
+
     updateButtonVisibility();
 
     // 加载自定义符号按钮
-    loadCustomSymbolButtons();
+    loadCustomSymbolButtons(); // Call this to ensure custom buttons/settings are loaded
 }
 
 // 更新设置面板中的按钮顺序
 function updateButtonsOrder() {
     const buttonOrder = extension_settings[extensionName].buttonOrder;
     if (!buttonOrder || buttonOrder.length === 0) return;
-    
-    // 根据保存的顺序重新排列设置面板中的按钮
+
     const container = $("#integrated_button_settings");
-    
+    if (!container.length) return; // Ensure container exists
+
     buttonOrder.forEach(key => {
         const buttonRow = $(`.integrated-button-row[data-button-key="${key}"]`);
         if (buttonRow.length) {
@@ -138,33 +135,34 @@ function updateButtonsOrder() {
 
 // 初始化按钮排序
 function initSortable() {
+    const container = $("#integrated_button_settings");
+    if (!container.length) return; // Check if container exists
+
     try {
-        if ($("#integrated_button_settings").sortable) {
-            $("#integrated_button_settings").sortable({
+        if (container.sortable) {
+            container.sortable({
                 handle: ".drag-handle",
                 axis: "y",
                 delay: 150,
                 stop: function() {
-                    // 获取新的排序
                     const newOrder = [];
                     $("#integrated_button_settings .integrated-button-row").each(function() {
                         const buttonKey = $(this).attr("data-button-key");
-                        newOrder.push(buttonKey);
+                        if (buttonKey) { // Ensure buttonKey is not undefined
+                            newOrder.push(buttonKey);
+                        }
                     });
-                    
-                    // 保存新排序到设置
+
                     extension_settings[extensionName].buttonOrder = newOrder;
                     saveSettingsDebounced();
-                    
-                    // 更新工具栏按钮顺序
                     updateToolbarButtonOrder();
                 }
             });
         } else {
-            console.warn("jQuery UI Sortable 不可用，无法启用拖拽排序功能");
+            console.warn("Input Helper: jQuery UI Sortable not available.");
         }
     } catch (error) {
-        console.error("初始化按钮排序功能失败:", error);
+        console.error("Input Helper: Failed to initialize sortable.", error);
     }
 }
 
@@ -172,33 +170,32 @@ function initSortable() {
 function updateToolbarButtonOrder() {
     const buttonOrder = extension_settings[extensionName].buttonOrder || [];
     if (buttonOrder.length === 0) return;
-    
+
     const toolbar = $("#input_helper_toolbar");
     if (toolbar.length === 0) return;
-    
-    // 按照保存的顺序重新排列工具栏按钮
+
     buttonOrder.forEach(key => {
-        // 防止空按钮ID
         const buttonId = getButtonIdFromKey(key);
         if (!buttonId) return;
-        
+
         const button = $(`#${buttonId}`);
+        // Check if button exists and should be visible according to settings
         if (button.length && extension_settings[extensionName].buttons[key] !== false) {
             toolbar.append(button);
         }
     });
 }
 
+
 // 从按钮键名获取按钮ID
 function getButtonIdFromKey(key) {
-    // 检查是否是自定义按钮
+    if (typeof key !== 'string') return ''; // Add type check
+
     if (key.startsWith('custom_')) {
-        // 直接返回自定义按钮的ID
         const index = key.replace('custom_', '');
         return `input_custom_${index}_btn`;
     }
-    
-    // 预定义按钮的映射
+
     const keyToId = {
         'asterisk': 'input_asterisk_btn',
         'quotes': 'input_quotes_btn',
@@ -206,57 +203,58 @@ function getButtonIdFromKey(key) {
         'bookQuotes1': 'input_book_quotes1_btn',
         'bookQuotes2': 'input_book_quotes2_btn',
         'bookQuotes3': 'input_book_quotes3_btn',
-        'newline': 'input_newline_btn',
+        'newline': 'input_newline_btn', // This is the button ID
         'user': 'input_user_btn',
         'char': 'input_char_btn'
     };
-    
+
     return keyToId[key] || '';
 }
 
 // 更新按钮可见性
 function updateButtonVisibility() {
     const buttons = extension_settings[extensionName].buttons;
-    
-    // 根据设置显示/隐藏按钮
-    $("#input_asterisk_btn").toggle(buttons.asterisk !== false);
-    $("#input_quotes_btn").toggle(buttons.quotes !== false);
-    $("#input_parentheses_btn").toggle(buttons.parentheses !== false);
-    $("#input_book_quotes1_btn").toggle(buttons.bookQuotes1 !== false);
-    $("#input_book_quotes2_btn").toggle(buttons.bookQuotes2 !== false);
-    $("#input_book_quotes3_btn").toggle(buttons.bookQuotes3 !== false); // 新增书名号按钮
-    $("#input_newline_btn").toggle(buttons.newline !== false);
-    $("#input_user_btn").toggle(buttons.user !== false);
-    $("#input_char_btn").toggle(buttons.char !== false);
-    
-    // 更新自定义按钮的显示/隐藏
+    if (!buttons) return; // Ensure buttons exist
+
+    // Helper function to toggle button visibility
+    const toggleBtn = (id, isVisible) => $(id).toggle(isVisible);
+
+    toggleBtn("#input_asterisk_btn", buttons.asterisk !== false);
+    toggleBtn("#input_quotes_btn", buttons.quotes !== false);
+    toggleBtn("#input_parentheses_btn", buttons.parentheses !== false);
+    toggleBtn("#input_book_quotes1_btn", buttons.bookQuotes1 !== false);
+    toggleBtn("#input_book_quotes2_btn", buttons.bookQuotes2 !== false);
+    toggleBtn("#input_book_quotes3_btn", buttons.bookQuotes3 !== false);
+    toggleBtn("#input_newline_btn", buttons.newline !== false); // Button visibility
+    toggleBtn("#input_user_btn", buttons.user !== false);
+    toggleBtn("#input_char_btn", buttons.char !== false);
+
     const customSymbols = extension_settings[extensionName].customSymbols || [];
     customSymbols.forEach((symbol, index) => {
         const buttonKey = `custom_${index}`;
-        $(`#input_custom_${index}_btn`).toggle(buttons[buttonKey] !== false);
+        toggleBtn(`#input_custom_${index}_btn`, buttons[buttonKey] !== false);
     });
-    
-    // 检查所有按钮是否都被隐藏，如果是则隐藏整个工具栏
-    const allHidden = Object.values(buttons).every(v => v === false);
-    if (allHidden) {
+
+    // Check if any button is visible
+    const anyVisible = Object.keys(buttons).some(key => buttons[key] !== false);
+
+    if (!anyVisible) {
         $("#input_helper_toolbar").hide();
     } else if (extension_settings[extensionName].enabled) {
         $("#input_helper_toolbar").show();
-        
-        // 更新按钮顺序
-        updateToolbarButtonOrder();
+        updateToolbarButtonOrder(); // Update order when visibility changes
     }
 }
+
 
 // 开关设置变更响应
 function onEnableInputChange() {
     const value = $("#enable_input_helper").prop("checked");
     extension_settings[extensionName].enabled = value;
     saveSettingsDebounced();
-    
-    // 根据复选框状态显示或隐藏工具栏
+
     if (value) {
-        updateButtonVisibility();
+        updateButtonVisibility(); // This will show the toolbar if any buttons are enabled
     } else {
         $("#input_helper_toolbar").hide();
     }
@@ -268,919 +266,736 @@ function onButtonVisibilityChange(buttonKey) {
         const checked = $(this).prop("checked");
         extension_settings[extensionName].buttons[buttonKey] = checked;
         saveSettingsDebounced();
-        updateButtonVisibility();
+        updateButtonVisibility(); // Update overall visibility and order
     };
 }
 
 // 获取输入框元素
 function getMessageInput() {
-    return $("#send_textarea, #prompt_textarea").first();
+    // Prioritize the visible textarea if possible, otherwise return the first match
+    const sendTextarea = $("#send_textarea");
+    const promptTextarea = $("#prompt_textarea");
+
+    if (sendTextarea.is(':visible') && sendTextarea.length) {
+        return sendTextarea;
+    } else if (promptTextarea.is(':visible') && promptTextarea.length) {
+        return promptTextarea;
+    } else {
+        // Fallback if visibility check fails or neither is visible
+        return $("#send_textarea, #prompt_textarea").first();
+    }
+}
+
+
+// Helper function to insert text and set cursor position
+function insertTextAndSetCursor(textarea, textToInsert, cursorOffset) {
+    const el = textarea[0]; // Get the DOM element
+    if (!el) return;
+
+    const startPos = el.selectionStart;
+    const endPos = el.selectionEnd;
+    const text = el.value;
+
+    const beforeText = text.substring(0, startPos);
+    const afterText = text.substring(endPos);
+
+    const newText = beforeText + textToInsert + afterText;
+    textarea.val(newText);
+
+    // Use setTimeout to ensure cursor is set after potential DOM updates
+    setTimeout(() => {
+        const newCursorPos = startPos + cursorOffset;
+        el.selectionStart = newCursorPos;
+        el.selectionEnd = newCursorPos;
+        textarea.focus(); // Refocus might be needed
+    }, 0);
+
+    // Trigger input event manually so other listeners (like auto-resize) can react
+    textarea.trigger('input');
 }
 
 // 插入引号功能
 function insertQuotes() {
     if (!extension_settings[extensionName].enabled) return;
-    
-    const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart");
-    const endPos = textarea.prop("selectionEnd");
-    const text = textarea.val();
-    
-    const beforeText = text.substring(0, startPos);
-    const selectedText = text.substring(startPos, endPos);
-    const afterText = text.substring(endPos);
-    
-    // 插入双引号并将光标放在中间
-    const newText = beforeText + "\"\"" + afterText;
-    textarea.val(newText);
-    
-    // 设置光标位置在双引号中间
-    setTimeout(() => {
-        textarea.prop("selectionStart", startPos + 1);
-        textarea.prop("selectionEnd", startPos + 1);
-        textarea.focus();
-    }, 0);
+    insertTextAndSetCursor(getMessageInput(), '""', 1);
 }
 
-// 插入换行功能
+// 插入换行功能 (Button Action) - Inserts newline at end of current line
 function insertNewLine() {
     if (!extension_settings[extensionName].enabled) return;
-    
+
     const textarea = getMessageInput();
-    const text = textarea.val();
-    const cursorPos = textarea.prop("selectionStart");
-    
-    // 查找当前行的末尾位置
+    const el = textarea[0];
+    if (!el) return;
+
+    const text = el.value;
+    const cursorPos = el.selectionStart;
+
+    // Find the end of the current line from the cursor position
     let lineEnd = text.indexOf("\n", cursorPos);
     if (lineEnd === -1) {
-        // 如果没有找到换行符，说明光标在最后一行，使用文本长度作为行末
-        lineEnd = text.length;
+        lineEnd = text.length; // If no newline found after cursor, end is text length
     }
-    
-    // 在行末插入换行符
+
+    // Insert newline at lineEnd
     const newText = text.substring(0, lineEnd) + "\n" + text.substring(lineEnd);
     textarea.val(newText);
-    
-    // 设置光标位置在新插入的换行符之后
+
+    // Set cursor position after the inserted newline
     setTimeout(() => {
-        textarea.prop("selectionStart", lineEnd + 1);
-        textarea.prop("selectionEnd", lineEnd + 1);
+        const newCursorPos = lineEnd + 1;
+        el.selectionStart = newCursorPos;
+        el.selectionEnd = newCursorPos;
         textarea.focus();
     }, 0);
+    // Trigger input event manually
+    textarea.trigger('input');
 }
+
 
 // 插入星号功能
 function insertAsterisk() {
     if (!extension_settings[extensionName].enabled) return;
-    
-    const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart");
-    const endPos = textarea.prop("selectionEnd");
-    const text = textarea.val();
-    
-    const beforeText = text.substring(0, startPos);
-    const selectedText = text.substring(startPos, endPos);
-    const afterText = text.substring(endPos);
-    
-    // 插入两个星号并将光标放在中间
-    const newText = beforeText + "**" + afterText;
-    textarea.val(newText);
-    
-    // 设置光标位置在星号中间
-    setTimeout(() => {
-        textarea.prop("selectionStart", startPos + 1);
-        textarea.prop("selectionEnd", startPos + 1);
-        textarea.focus();
-    }, 0);
+    insertTextAndSetCursor(getMessageInput(), '**', 1);
 }
 
 // 插入用户标记功能
 function insertUserTag() {
     if (!extension_settings[extensionName].enabled) return;
-    
-    const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart");
-    const endPos = textarea.prop("selectionEnd");
-    const text = textarea.val();
-    
-    const beforeText = text.substring(0, startPos);
-    const selectedText = text.substring(startPos, endPos);
-    const afterText = text.substring(endPos);
-    
-    // 插入用户标记
-    const newText = beforeText + "{{User}}" + afterText;
-    textarea.val(newText);
-    
-    // 设置光标位置在标记之后
-    setTimeout(() => {
-        textarea.prop("selectionStart", startPos + 8); // "{{User}}".length = 8
-        textarea.prop("selectionEnd", startPos + 8);
-        textarea.focus();
-    }, 0);
+    insertTextAndSetCursor(getMessageInput(), '{{User}}', 8);
 }
 
 // 插入角色标记功能
 function insertCharTag() {
     if (!extension_settings[extensionName].enabled) return;
-    
-    const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart");
-    const endPos = textarea.prop("selectionEnd");
-    const text = textarea.val();
-    
-    const beforeText = text.substring(0, startPos);
-    const selectedText = text.substring(startPos, endPos);
-    const afterText = text.substring(endPos);
-    
-    // 插入角色标记
-    const newText = beforeText + "{{Char}}" + afterText;
-    textarea.val(newText);
-    
-    // 设置光标位置在标记之后
-    setTimeout(() => {
-        textarea.prop("selectionStart", startPos + 8); // "{{Char}}".length = 8
-        textarea.prop("selectionEnd", startPos + 8);
-        textarea.focus();
-    }, 0);
+    insertTextAndSetCursor(getMessageInput(), '{{Char}}', 8);
 }
 
 // 插入圆括号功能
 function insertParentheses() {
     if (!extension_settings[extensionName].enabled) return;
-    
-    const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart");
-    const endPos = textarea.prop("selectionEnd");
-    const text = textarea.val();
-    
-    const beforeText = text.substring(0, startPos);
-    const selectedText = text.substring(startPos, endPos);
-    const afterText = text.substring(endPos);
-    
-    // 插入圆括号并将光标放在中间
-    const newText = beforeText + "()" + afterText;
-    textarea.val(newText);
-    
-    // 设置光标位置在括号中间
-    setTimeout(() => {
-        textarea.prop("selectionStart", startPos + 1);
-        textarea.prop("selectionEnd", startPos + 1);
-        textarea.focus();
-    }, 0);
+    insertTextAndSetCursor(getMessageInput(), '()', 1);
 }
 
 // 插入书名号「」功能
 function insertBookQuotes1() {
     if (!extension_settings[extensionName].enabled) return;
-    
-    const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart");
-    const endPos = textarea.prop("selectionEnd");
-    const text = textarea.val();
-    
-    const beforeText = text.substring(0, startPos);
-    const selectedText = text.substring(startPos, endPos);
-    const afterText = text.substring(endPos);
-    
-    // 插入书名号并将光标放在中间
-    const newText = beforeText + "「」" + afterText;
-    textarea.val(newText);
-    
-    // 设置光标位置在书名号中间
-    setTimeout(() => {
-        textarea.prop("selectionStart", startPos + 1);
-        textarea.prop("selectionEnd", startPos + 1);
-        textarea.focus();
-    }, 0);
+    insertTextAndSetCursor(getMessageInput(), '「」', 1);
 }
 
 // 插入书名号『』功能
 function insertBookQuotes2() {
     if (!extension_settings[extensionName].enabled) return;
-    
-    const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart");
-    const endPos = textarea.prop("selectionEnd");
-    const text = textarea.val();
-    
-    const beforeText = text.substring(0, startPos);
-    const selectedText = text.substring(startPos, endPos);
-    const afterText = text.substring(endPos);
-    
-    // 插入书名号并将光标放在中间
-    const newText = beforeText + "『』" + afterText;
-    textarea.val(newText);
-    
-    // 设置光标位置在书名号中间
-    setTimeout(() => {
-        textarea.prop("selectionStart", startPos + 1);
-        textarea.prop("selectionEnd", startPos + 1);
-        textarea.focus();
-    }, 0);
+    insertTextAndSetCursor(getMessageInput(), '『』', 1);
 }
 
 // 插入书名号《》功能
 function insertBookQuotes3() {
     if (!extension_settings[extensionName].enabled) return;
-    
-    const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart");
-    const endPos = textarea.prop("selectionEnd");
-    const text = textarea.val();
-    
-    const beforeText = text.substring(0, startPos);
-    const selectedText = text.substring(startPos, endPos);
-    const afterText = text.substring(endPos);
-    
-    // 插入书名号并将光标放在中间
-    const newText = beforeText + "《》" + afterText;
-    textarea.val(newText);
-    
-    // 设置光标位置在书名号中间
-    setTimeout(() => {
-        textarea.prop("selectionStart", startPos + 1);
-        textarea.prop("selectionEnd", startPos + 1);
-        textarea.focus();
-    }, 0);
+    insertTextAndSetCursor(getMessageInput(), '《》', 1);
 }
 
 // 处理快捷键设置
 function setupShortcutInputs() {
-    // 处理快捷键输入
-    $(".shortcut-input").on("keydown", function(e) {
+    // Handle removing previous listeners to avoid duplicates if called multiple times
+    $(document).off("keydown", ".shortcut-input");
+    $(document).off("click", ".shortcut-clear-btn");
+
+    $(document).on("keydown", ".shortcut-input", function(e) {
         e.preventDefault();
-        
-        // 获取按键组合
+        e.stopPropagation(); // Prevent triggering global shortcuts
+
         let keys = [];
         if (e.ctrlKey) keys.push("Ctrl");
         if (e.altKey) keys.push("Alt");
         if (e.shiftKey) keys.push("Shift");
-        
-        // 添加主键（如果不是修饰键）
-        if (
-            e.key !== "Control" && 
-            e.key !== "Alt" && 
-            e.key !== "Shift" && 
-            e.key !== "Meta" &&
-            e.key !== "Escape"
-        ) {
-            // 修复: 确保e.key存在并且有length属性
-            const keyName = e.key && typeof e.key === 'string' && e.key.length === 1 
-                ? e.key.toUpperCase() 
-                : (e.key || "Unknown");
+
+        const validKey = e.key && typeof e.key === 'string' &&
+            e.key !== "Control" && e.key !== "Alt" &&
+            e.key !== "Shift" && e.key !== "Meta" && e.key !== "Escape";
+
+        if (validKey) {
+            const keyName = e.key.length === 1 ? e.key.toUpperCase() : e.key;
             keys.push(keyName);
         }
-        
-        // 如果只按了Escape键，清除快捷键
+
         if (e.key === "Escape") {
             $(this).val("");
             const shortcutKey = $(this).attr("id").replace("shortcut_", "");
-            extension_settings[extensionName].shortcuts[shortcutKey] = "";
-            saveSettingsDebounced();
+            if (extension_settings[extensionName].shortcuts.hasOwnProperty(shortcutKey)) {
+                extension_settings[extensionName].shortcuts[shortcutKey] = "";
+                saveSettingsDebounced();
+            }
             return;
         }
-        
-        // 如果没有按键组合或只有修饰键，不设置
-        if (keys.length === 0 || (keys.length === 1 && ["Ctrl", "Alt", "Shift"].includes(keys[0]))) {
-            return;
+
+        // Require at least one modifier and one main key, or just a non-modifier key if it's not a single character (like F1, Enter)
+        if (keys.length > 1 || (keys.length === 1 && !["Ctrl", "Alt", "Shift"].includes(keys[0]))) {
+            const shortcutString = keys.join("+");
+            $(this).val(shortcutString);
+
+            const shortcutKey = $(this).attr("id").replace("shortcut_", "");
+            // Ensure the key exists in settings before assigning
+            if (extension_settings[extensionName].shortcuts.hasOwnProperty(shortcutKey)) {
+                extension_settings[extensionName].shortcuts[shortcutKey] = shortcutString;
+                saveSettingsDebounced();
+            } else {
+                console.warn(`Input Helper: Shortcut key "${shortcutKey}" not found in settings.`);
+            }
         }
-        
-        // 设置快捷键
-        const shortcutString = keys.join("+");
-        $(this).val(shortcutString);
-        
-        // 保存到设置
-        const shortcutKey = $(this).attr("id").replace("shortcut_", "");
-        extension_settings[extensionName].shortcuts[shortcutKey] = shortcutString;
-        saveSettingsDebounced();
     });
-    
-    // 处理清除按钮
-    $(".shortcut-clear-btn").on("click", function() {
+
+    $(document).on("click", ".shortcut-clear-btn", function() {
         const targetId = $(this).data("target");
         $(`#${targetId}`).val("");
-        
-        // 保存到设置
+
         const shortcutKey = targetId.replace("shortcut_", "");
-        extension_settings[extensionName].shortcuts[shortcutKey] = "";
-        saveSettingsDebounced();
+        if (extension_settings[extensionName].shortcuts.hasOwnProperty(shortcutKey)) {
+            extension_settings[extensionName].shortcuts[shortcutKey] = "";
+            saveSettingsDebounced();
+        }
     });
 }
 
+
 // 全局快捷键处理函数
 function handleGlobalShortcuts(e) {
-    // 如果插件未启用或正在编辑快捷键，不处理
-    if (!extension_settings[extensionName].enabled || $(document.activeElement).hasClass("shortcut-input")) {
+    const isEditingShortcut = $(document.activeElement).hasClass("shortcut-input");
+    const isTextAreaFocused = $(document.activeElement).is("#send_textarea, #prompt_textarea");
+
+    // Only handle if plugin enabled, not editing a shortcut, and textarea is focused
+    if (!extension_settings[extensionName].enabled || isEditingShortcut || !isTextAreaFocused) {
         return;
     }
-    
-    // 如果当前焦点不在文本区域，不处理
-    const messageInput = getMessageInput()[0];
-    if (document.activeElement !== messageInput) {
-        return;
-    }
-    
-    // 获取当前按键组合
+
     let keys = [];
     if (e.ctrlKey) keys.push("Ctrl");
     if (e.altKey) keys.push("Alt");
     if (e.shiftKey) keys.push("Shift");
-    
-    // 添加主键（如果不是修饰键）
-    if (
-        e.key !== "Control" && 
-        e.key !== "Alt" && 
-        e.key !== "Shift" && 
-        e.key !== "Meta"
-    ) {
-        // 修复: 确保e.key存在并且有length属性
-        const keyName = e.key && typeof e.key === 'string' && e.key.length === 1 
-            ? e.key.toUpperCase() 
-            : (e.key || "Unknown");
+
+    const validKey = e.key && typeof e.key === 'string' &&
+        e.key !== "Control" && e.key !== "Alt" &&
+        e.key !== "Shift" && e.key !== "Meta";
+
+    if (validKey) {
+        const keyName = e.key.length === 1 ? e.key.toUpperCase() : e.key;
         keys.push(keyName);
     }
-    
-    // 如果没有有效的按键组合，不处理
-    if (keys.length <= 1) {
-        return;
+
+    // Need at least one modifier + key, or a non-single-char key like F1, etc.
+    if (keys.length < 1 || (keys.length === 1 && ["Ctrl", "Alt", "Shift"].includes(keys[0]))) {
+        // Allow single non-modifier keys if they are not typical typing keys (e.g., function keys)
+        if (!(keys.length === 1 && keys[0].length > 1 && !["Ctrl", "Alt", "Shift"].includes(keys[0]))) {
+            return;
+        }
     }
-    
+
+
     const shortcutString = keys.join("+");
     const shortcuts = extension_settings[extensionName].shortcuts;
-    
-    // 查找匹配的快捷键
+
     for (const key in shortcuts) {
         if (shortcuts[key] === shortcutString) {
-            e.preventDefault();
-            
-            // 检查是否是自定义按钮的快捷键
-            if (key.startsWith('custom_')) {
-                const index = parseInt(key.replace('custom_', ''));
-                const customSymbols = extension_settings[extensionName].customSymbols || [];
-                if (index >= 0 && index < customSymbols.length) {
-                    insertCustomSymbol(customSymbols[index]);
-                    return;
+            e.preventDefault(); // Prevent default browser/app action for the shortcut
+
+            // Find the function or action associated with this shortcut key
+            const action = shortcutFunctionMap[key];
+            if (typeof action === 'function') {
+                action();
+                return; // Shortcut handled
+            } else {
+                // Handle custom symbols dynamically mapped earlier
+                if (key.startsWith('custom_')) {
+                    const index = parseInt(key.replace('custom_', ''));
+                    const customSymbols = extension_settings[extensionName].customSymbols || [];
+                    if (index >= 0 && index < customSymbols.length) {
+                        insertCustomSymbol(customSymbols[index]);
+                        return; // Shortcut handled
+                    }
                 }
-            }
-            // 执行对应的功能
-            else if (shortcutFunctionMap[key]) {
-                shortcutFunctionMap[key]();
-                return;
             }
         }
     }
 }
 
+
 // 加载自定义符号按钮
 function loadCustomSymbolButtons() {
     const customSymbols = extension_settings[extensionName].customSymbols || [];
-    
-    // 清除现有的自定义按钮
+
+    // Clear existing custom elements first to prevent duplication
     $(".custom-symbol-button").remove();
     $(".integrated-button-row[data-custom='true']").remove();
-    
-    // 为每个自定义符号创建按钮和设置项
+
+    // Clear dynamic entries from shortcut map to prevent stale entries if symbols are deleted/reordered
+    Object.keys(shortcutFunctionMap).forEach(key => {
+        if (key.startsWith('custom_')) {
+            delete shortcutFunctionMap[key];
+        }
+    });
+
     customSymbols.forEach((symbol, index) => {
         const buttonKey = `custom_${index}`;
-        
-        // 为工具栏创建按钮
+
+        // Create toolbar button
         createCustomSymbolButton(symbol, index);
-        
-        // 为设置面板创建行
+
+        // Create settings panel row
         createCustomSymbolSetting(symbol, index);
-        
-        // 更新按钮顺序
+
+        // Ensure settings exist for this button (order, visibility, shortcut)
         if (!extension_settings[extensionName].buttonOrder.includes(buttonKey)) {
             extension_settings[extensionName].buttonOrder.push(buttonKey);
         }
-        
-        // 确保该按钮有显示设置
         if (extension_settings[extensionName].buttons[buttonKey] === undefined) {
-            extension_settings[extensionName].buttons[buttonKey] = true;
+            extension_settings[extensionName].buttons[buttonKey] = true; // Default to visible
         }
-        
-        // 确保该按钮有快捷键设置
         if (extension_settings[extensionName].shortcuts[buttonKey] === undefined) {
-            extension_settings[extensionName].shortcuts[buttonKey] = "";
+            extension_settings[extensionName].shortcuts[buttonKey] = ""; // Default to no shortcut
         }
-        
-        // 更新快捷键映射
-        shortcutFunctionMap[buttonKey] = function() {
-            insertCustomSymbol(customSymbols[index]);
-        };
+
+        // Dynamically add to shortcut map
+        shortcutFunctionMap[buttonKey] = () => insertCustomSymbol(customSymbols[index]);
     });
-    
-    // 更新按钮顺序
-    updateButtonsOrder();
-    updateToolbarButtonOrder();
-    
-    // 重新绑定快捷键输入框事件
-    setupShortcutInputs();
+
+    // Update UI elements after loading/reloading symbols
+    updateButtonsOrder(); // Update settings panel order
+    updateToolbarButtonOrder(); // Update toolbar order
+    updateButtonVisibility(); // Ensure correct visibility based on settings
+    setupShortcutInputs(); // Re-initialize shortcut input fields bindings
 }
 
 // 创建自定义符号按钮
 function createCustomSymbolButton(symbol, index) {
     const buttonId = `input_custom_${index}_btn`;
     const buttonKey = `custom_${index}`;
-    
-    // 先检查是否已存在，如果存在则移除
-    $(`#${buttonId}`).remove();
-    
-    // 创建按钮并添加到工具栏
-    const button = $(`<button id="${buttonId}" class="input-helper-btn custom-symbol-button" title="${symbol.name}" data-norefocus="true" data-index="${index}">${symbol.display}</button>`);
+
+    // Create button element
+    const button = $(`<button id="${buttonId}" class="input-helper-btn custom-symbol-button" title="${symbol.name || ''}" data-norefocus="true" data-index="${index}">${symbol.display || symbol.symbol}</button>`);
+
+    // Append to toolbar (order will be corrected by updateToolbarButtonOrder)
     $("#input_helper_toolbar").append(button);
-    
-    // 添加点击事件
+
+    // Add click/touch event
     bindCustomSymbolEvent(button, symbol);
 }
 
 // 为自定义符号按钮绑定事件
 function bindCustomSymbolEvent(button, symbol) {
-    // 检查是否是移动设备
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-        button.on("touchstart", function(e) {
-            e.preventDefault();
-            insertCustomSymbol(symbol);
-            
-            // 确保输入框保持焦点状态
+
+    // Use appropriate event based on device
+    const eventType = isMobile ? "touchstart" : "click";
+
+    button.off(eventType).on(eventType, function(e) {
+        if (isMobile) {
+            e.preventDefault(); // Prevent potential double actions or focus issues on mobile
+        }
+        insertCustomSymbol(symbol);
+
+        // Ensure focus stays on textarea after interaction, especially on mobile
+        if (isMobile) {
             setTimeout(() => {
                 getMessageInput().focus();
-            }, 10);
-            
-            return false;
-        });
-    } else {
-        button.on("click", function() {
-            insertCustomSymbol(symbol);
-        });
-    }
+            }, 10); // Small delay might be needed
+        }
+        return !isMobile; // Prevent default click behavior on mobile, allow on desktop
+    });
 }
 
 // 创建自定义符号设置项
 function createCustomSymbolSetting(symbol, index) {
     const buttonKey = `custom_${index}`;
-    
-    // 先检查是否已存在，如果存在则移除
-    $(`.integrated-button-row[data-button-key="${buttonKey}"]`).remove();
-    
-    // 创建设置行 - 修改编辑和删除按钮位置
+
+    // Create the HTML row for the settings panel
     const row = $(`
         <div class="integrated-button-row" data-button-key="${buttonKey}" data-custom="true" data-index="${index}">
-            <span class="drag-handle menu-handle">&#9776;</span>
+            <span class="drag-handle menu-handle">☰</span>
             <input id="enable_${buttonKey}_btn" type="checkbox" ${extension_settings[extensionName].buttons[buttonKey] !== false ? 'checked' : ''} />
-            <div class="button-preview">${symbol.display}</div>
-            <label for="enable_${buttonKey}_btn">${symbol.name}</label>
-            <button class="custom-edit-btn" title="编辑" data-index="${index}">✏️</button>
-            <button class="custom-delete-btn" title="删除" data-index="${index}">🗑️</button>
+            <div class="button-preview">${symbol.display || symbol.symbol}</div>
+            <label for="enable_${buttonKey}_btn">${symbol.name || 'Unnamed Symbol'}</label>
+            <div class="button-actions"> <!-- Container for buttons -->
+                <button class="custom-edit-btn inline-button" title="编辑" data-index="${index}">✏️</button>
+                <button class="custom-delete-btn inline-button" title="删除" data-index="${index}">🗑️</button>
+            </div>
             <input id="shortcut_${buttonKey}" class="shortcut-input" type="text" value="${extension_settings[extensionName].shortcuts[buttonKey] || ''}" placeholder="无快捷键" readonly />
-            <button class="shortcut-clear-btn" data-target="shortcut_${buttonKey}">×</button>
+            <button class="shortcut-clear-btn inline-button" data-target="shortcut_${buttonKey}" title="清除快捷键">×</button>
         </div>
     `);
-    
-    // 添加到设置面板
+
+    // Append to the settings container (order will be corrected by updateButtonsOrder)
     $("#integrated_button_settings").append(row);
-    
-    // 添加事件监听
+
+    // Bind events for controls within the row
     row.find(`#enable_${buttonKey}_btn`).on("input", onButtonVisibilityChange(buttonKey));
     row.find(".custom-edit-btn").on("click", function() {
-        const index = $(this).data("index");
-        editCustomSymbol(index);
+        editCustomSymbol($(this).data("index"));
     });
     row.find(".custom-delete-btn").on("click", function() {
-        const index = $(this).data("index");
-        deleteCustomSymbol(index);
+        deleteCustomSymbol($(this).data("index"));
     });
+    // Shortcut input bindings are handled by setupShortcutInputs() called after loadCustomSymbolButtons
 }
 
 // 插入自定义符号
 function insertCustomSymbol(symbol) {
-    if (!extension_settings[extensionName].enabled) return;
-    
+    if (!extension_settings[extensionName].enabled || !symbol) return;
+
     const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart");
-    const endPos = textarea.prop("selectionEnd");
-    const text = textarea.val();
-    
-    const beforeText = text.substring(0, startPos);
-    const selectedText = text.substring(startPos, endPos);
-    const afterText = text.substring(endPos);
-    
-    // 插入符号
-    const newText = beforeText + symbol.symbol + afterText;
-    textarea.val(newText);
-    
-    // 设置光标位置
-    setTimeout(() => {
-        // 计算光标位置
-        let cursorPos = startPos;
-        
-        if (symbol.cursorPos === "start") {
-            cursorPos = startPos;
-        } else if (symbol.cursorPos === "end") {
-            cursorPos = startPos + symbol.symbol.length;
-        } else if (symbol.cursorPos === "middle") {
-            cursorPos = startPos + Math.floor(symbol.symbol.length / 2);
-        } else {
-            // 具体位置
-            cursorPos = startPos + parseInt(symbol.cursorPos) || startPos;
+    const el = textarea[0];
+    if (!el) return;
+
+    // Process \n in the symbol string to actual newlines
+    const processedSymbol = symbol.symbol.replace(/\\n/g, '\n');
+    const insertedLength = processedSymbol.length;
+
+    let cursorOffset;
+    if (symbol.cursorPos === "start") {
+        cursorOffset = 0;
+    } else if (symbol.cursorPos === "end") {
+        cursorOffset = insertedLength;
+    } else if (symbol.cursorPos === "middle") {
+        cursorOffset = Math.floor(insertedLength / 2);
+    } else {
+        // Custom position (treat as number)
+        cursorOffset = parseInt(symbol.cursorPos);
+        if (isNaN(cursorOffset) || cursorOffset < 0 || cursorOffset > insertedLength) {
+            cursorOffset = Math.floor(insertedLength / 2); // Default to middle if invalid
         }
-        
-        textarea.prop("selectionStart", cursorPos);
-        textarea.prop("selectionEnd", cursorPos);
-        textarea.focus();
-    }, 0);
+    }
+
+    insertTextAndSetCursor(textarea, processedSymbol, cursorOffset);
 }
 
 // 编辑自定义符号
 function editCustomSymbol(index) {
     const symbols = extension_settings[extensionName].customSymbols;
-    const symbol = symbols[index];
-    
-    // 显示编辑对话框
-    showCustomSymbolDialog(symbol, index);
+    if (index >= 0 && index < symbols.length) {
+        showCustomSymbolDialog(symbols[index], index);
+    } else {
+        console.error("Input Helper: Invalid index for editing custom symbol:", index);
+    }
 }
 
 // 删除自定义符号
 function deleteCustomSymbol(index) {
-    if (confirm("确定要删除这个自定义符号吗？")) {
-        const symbols = extension_settings[extensionName].customSymbols;
+    const symbols = extension_settings[extensionName].customSymbols;
+    if (index < 0 || index >= symbols.length) {
+        console.error("Input Helper: Invalid index for deleting custom symbol:", index);
+        return;
+    }
+
+    if (confirm(`确定要删除符号 "${symbols[index].name || 'Unnamed Symbol'}" 吗？`)) {
         const buttonKey = `custom_${index}`;
-        
-        // 从设置中删除
+
+        // Remove from settings arrays/objects
         symbols.splice(index, 1);
-        
-        // 从按钮顺序中删除
+
         const orderIndex = extension_settings[extensionName].buttonOrder.indexOf(buttonKey);
         if (orderIndex > -1) {
             extension_settings[extensionName].buttonOrder.splice(orderIndex, 1);
         }
-        
-        // 从按钮显示设置中删除
+
         delete extension_settings[extensionName].buttons[buttonKey];
-        
-        // 从按钮快捷键设置中删除
         delete extension_settings[extensionName].shortcuts[buttonKey];
-        
-        // 从工具栏中删除
-        $(`#input_custom_${index}_btn`).remove();
-        
-        // 从快捷键映射中删除
-        delete shortcutFunctionMap[buttonKey];
-        
-        // 保存设置
+        // Note: shortcutFunctionMap is rebuilt in loadCustomSymbolButtons
+
+        // Save settings immediately
         saveSettingsDebounced();
-        
-        // 移动设备监听器需要重新绑定
-        rebindMobileEventListeners();
-        
-        // 重新加载自定义按钮 - 这会导致索引重排
+
+        // Reload all custom buttons to re-index everything correctly
         loadCustomSymbolButtons();
-        
-        // 更新工具栏
-        updateButtonVisibility();
+
+        // No need to call updateButtonVisibility separately, loadCustomSymbolButtons handles UI updates
+        // No need to rebind mobile listeners separately, bindCustomSymbolEvent handles it during creation
+
+        console.log(`Input Helper: Deleted custom symbol at index ${index}.`);
     }
 }
 
-// 重新绑定移动设备事件监听器
-function rebindMobileEventListeners() {
-    if (!/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-        return; // 非移动设备不需要重新绑定
-    }
-    
-    // 移除之前的监听器
-    $("#input_helper_toolbar button").off("touchstart");
-    
-    // 重新绑定监听器
-    $("#input_helper_toolbar button").on("touchstart", function(e) {
-        e.preventDefault();
-        const btnId = $(this).attr("id");
-        
-        // 基于按钮ID调用相应的函数
-        if (btnId === "input_asterisk_btn") insertAsterisk();
-        else if (btnId === "input_quotes_btn") insertQuotes();
-        else if (btnId === "input_parentheses_btn") insertParentheses();
-        else if (btnId === "input_book_quotes1_btn") insertBookQuotes1();
-        else if (btnId === "input_book_quotes2_btn") insertBookQuotes2();
-        else if (btnId === "input_book_quotes3_btn") insertBookQuotes3();
-        else if (btnId === "input_newline_btn") insertNewLine();
-        else if (btnId === "input_user_btn") insertUserTag();
-        else if (btnId === "input_char_btn") insertCharTag();
-        else if (btnId.startsWith("input_custom_")) {
-            // 处理自定义按钮
-            const index = parseInt(btnId.replace("input_custom_", "").replace("_btn", ""));
-            const customSymbols = extension_settings[extensionName].customSymbols || [];
-            if (index >= 0 && index < customSymbols.length) {
-                insertCustomSymbol(customSymbols[index]);
-            }
-        }
-        
-        // 确保输入框保持焦点状态
-        setTimeout(() => {
-            getMessageInput().focus();
-        }, 10);
-        
-        return false;
-    });
-}
+// 重新绑定移动设备事件监听器 - Simplified: binding now happens during button creation
+// function rebindMobileEventListeners() { ... } // No longer strictly needed if bindCustomSymbolEvent is robust
+
 
 // 显示自定义符号对话框
 function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
-    // 创建对话框 - 修改样式以正确应用主题颜色
-    const dialog = $(`
-        <div id="custom_symbol_dialog" class="custom-symbol-dialog">
+    // Remove existing dialog if any
+    $("#custom_symbol_dialog").remove();
+
+    const dialogHtml = `
+        <div id="custom_symbol_dialog" class="custom-symbol-dialog SillyTavernDialog"> <!-- Add ST dialog class -->
             <div class="custom-symbol-dialog-content">
                 <h3>${existingSymbol ? '编辑符号' : '添加自定义符号'}</h3>
                 <div class="custom-symbol-form">
-                    <div class="form-group">
-                        <label for="custom_symbol_name">名称：</label>
-                        <input type="text" id="custom_symbol_name" value="${existingSymbol ? existingSymbol.name : ''}" placeholder="如：方括号">
+                    <div class="form-group inline-label"> <!-- Use inline-label for better alignment -->
+                        <label for="custom_symbol_name">名称:</label>
+                        <input type="text" id="custom_symbol_name" value="${existingSymbol?.name || ''}" placeholder="如：方括号">
                     </div>
-                    <div class="form-group">
-                        <label for="custom_symbol_symbol">符号：</label>
-                        <input type="text" id="custom_symbol_symbol" value="${existingSymbol ? existingSymbol.symbol : ''}" placeholder="如：[]">
+                    <div class="form-group inline-label">
+                        <label for="custom_symbol_symbol">符号:</label>
+                        <input type="text" id="custom_symbol_symbol" value="${existingSymbol?.symbol || ''}" placeholder="如：[] (用 \\n 表示换行)">
                     </div>
-                    <div class="form-group">
-                        <label for="custom_symbol_display">显示文本：</label>
-                        <input type="text" id="custom_symbol_display" value="${existingSymbol ? existingSymbol.display : ''}" placeholder="如：[]">
+                     <div class="form-group inline-label">
+                        <label for="custom_symbol_display">显示:</label>
+                        <input type="text" id="custom_symbol_display" value="${existingSymbol?.display || ''}" placeholder="按钮上显示的文本 (可选)">
                     </div>
-                    <div class="form-group">
-                        <label for="custom_symbol_cursor">光标位置：</label>
+                    <div class="form-group inline-label">
+                        <label for="custom_symbol_cursor">光标:</label>
                         <select id="custom_symbol_cursor">
-                            <option value="start" ${existingSymbol && existingSymbol.cursorPos === 'start' ? 'selected' : ''}>开始</option>
+                            <option value="start" ${existingSymbol?.cursorPos === 'start' ? 'selected' : ''}>开始</option>
                             <option value="middle" ${!existingSymbol || existingSymbol.cursorPos === 'middle' ? 'selected' : ''}>中间</option>
-                            <option value="end" ${existingSymbol && existingSymbol.cursorPos === 'end' ? 'selected' : ''}>结尾</option>
-                            <option value="custom" ${existingSymbol && !['start', 'middle', 'end'].includes(existingSymbol.cursorPos) ? 'selected' : ''}>自定义</option>
+                            <option value="end" ${existingSymbol?.cursorPos === 'end' ? 'selected' : ''}>结尾</option>
+                            <option value="custom" ${existingSymbol && !['start', 'middle', 'end'].includes(existingSymbol.cursorPos) ? 'selected' : ''}>位置</option>
                         </select>
                         <input type="number" id="custom_symbol_cursor_pos" value="${existingSymbol && !['start', 'middle', 'end'].includes(existingSymbol.cursorPos) ? existingSymbol.cursorPos : '1'}" min="0" style="display: ${existingSymbol && !['start', 'middle', 'end'].includes(existingSymbol.cursorPos) ? 'inline-block' : 'none'}; width: 60px;">
                     </div>
                 </div>
+                <hr>
                 <div class="custom-symbol-buttons">
-                    <button id="custom_symbol_cancel">取消</button>
-                    <button id="custom_symbol_save">保存</button>
+                    <button id="custom_symbol_cancel" class="menu_button">取消</button>
+                    <button id="custom_symbol_save" class="menu_button primary_button">保存</button> <!-- Use ST button classes -->
                 </div>
             </div>
         </div>
-    `);
-    
-    // 添加到页面
+    `;
+    const dialog = $(dialogHtml);
     $("body").append(dialog);
-    
-    // 处理自定义光标位置选择
+
+    // Event handlers for the dialog
     $("#custom_symbol_cursor").on("change", function() {
-        if ($(this).val() === "custom") {
-            $("#custom_symbol_cursor_pos").show();
-        } else {
-            $("#custom_symbol_cursor_pos").hide();
-        }
-    });
-    
-    // 取消按钮事件
-    $("#custom_symbol_cancel").on("click", function() {
-        dialog.remove();
-    });
-    
-    // 保存按钮事件
+        $("#custom_symbol_cursor_pos").toggle($(this).val() === "custom");
+    }).trigger('change'); // Trigger change on load to set initial state
+
+    $("#custom_symbol_cancel").on("click", () => dialog.remove());
+
     $("#custom_symbol_save").on("click", function() {
         const name = $("#custom_symbol_name").val().trim();
-        const symbol = $("#custom_symbol_symbol").val();
-        const display = $("#custom_symbol_display").val() || symbol;
-        let cursorPos = $("#custom_symbol_cursor").val();
-        
-        if (cursorPos === "custom") {
-            cursorPos = $("#custom_symbol_cursor_pos").val();
-        }
-        
-        // 验证输入
+        const symbol = $("#custom_symbol_symbol").val(); // Don't trim symbol, spaces might be intentional
+        const display = $("#custom_symbol_display").val().trim() || symbol.replace(/\\n/g, ''); // Use symbol as fallback display, remove newlines for display
+        let cursorPosOption = $("#custom_symbol_cursor").val();
+        let cursorPos = cursorPosOption === "custom" ? $("#custom_symbol_cursor_pos").val() : cursorPosOption;
+
+
         if (!name || !symbol) {
-            alert("请输入名称和符号！");
+            alert("名称和符号不能为空！");
             return;
         }
-        
-        // 创建符号对象
-        const symbolObj = {
-            name: name,
-            symbol: symbol,
-            display: display,
-            cursorPos: cursorPos
-        };
-        
-        // 保存到设置
+
+        const symbolObj = { name, symbol, display, cursorPos };
+
         if (editIndex >= 0) {
-            // 编辑现有符号
             extension_settings[extensionName].customSymbols[editIndex] = symbolObj;
+            console.log("Input Helper: Updated custom symbol:", symbolObj);
         } else {
-            // 添加新符号
-            if (!extension_settings[extensionName].customSymbols) {
-                extension_settings[extensionName].customSymbols = [];
-            }
             extension_settings[extensionName].customSymbols.push(symbolObj);
+            console.log("Input Helper: Added custom symbol:", symbolObj);
         }
-        
-        // 保存设置
+
         saveSettingsDebounced();
-        
-        // 重新加载自定义按钮
-        loadCustomSymbolButtons();
-        
-        // 关闭对话框
+        loadCustomSymbolButtons(); // Reload UI
         dialog.remove();
     });
+
+    // Focus the first input field
+    $("#custom_symbol_name").focus();
 }
 
-// 初始化插件
+
+// ==========================================================================
+// Initialize Plugin
+// ==========================================================================
 jQuery(async () => {
-    // 加载HTML
-    const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
-    $("#extensions_settings2").append(settingsHtml);
-    
-    // 加载输入工具栏HTML
-    const toolbarHtml = await $.get(`${extensionFolderPath}/toolbar.html`);
-    
-    // 将工具栏插入到 #qr--bar 下方，并确保正确的视觉顺序
-    if ($("#qr--bar").length) {
-        // 如果存在QR Bar，确保正确的插入位置和样式
-        $("#qr--bar").after(toolbarHtml);
-        
-        // 为了确保正确的视觉顺序，应用特定的CSS
-        $("#send_form").css("display", "flex");
-        $("#send_form").css("flex-direction", "column");
-        $("#qr--bar").css("order", "1");
-        $("#input_helper_toolbar").css("order", "2");
-    } else {
-        // 如果不存在QR Bar，则插入到file_form后
-        $("#file_form").after(toolbarHtml);
-    }
-    
-    // 移动设备优化：防止按钮点击导致键盘消失和重新出现
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-        // 在移动设备上，阻止工具栏按钮的默认行为，避免输入框失焦
-        $("#input_helper_toolbar").on("mousedown touchstart", function(e) {
-            e.preventDefault(); // 阻止默认行为
-            // 不阻止冒泡，以便点击事件仍然被处理
-        });
-        
-        // 初始绑定移动设备触摸事件 - 使用统一的函数便于重新绑定
-        rebindMobileEventListeners();
-    } else {
-        // 桌面端使用原有的点击事件
-        $("#input_asterisk_btn").on("click", insertAsterisk);
-        $("#input_quotes_btn").on("click", insertQuotes);
-        $("#input_newline_btn").on("click", insertNewLine);
-        $("#input_user_btn").on("click", insertUserTag);
-        $("#input_char_btn").on("click", insertCharTag);
-        $("#input_parentheses_btn").on("click", insertParentheses);
-        $("#input_book_quotes1_btn").on("click", insertBookQuotes1);
-        $("#input_book_quotes2_btn").on("click", insertBookQuotes2);
-        $("#input_book_quotes3_btn").on("click", insertBookQuotes3);
-        // 动态添加的自定义按钮会在创建时绑定事件
-    }
-    
-    // 注册事件监听
-    $("#insert_quotes_button").on("click", insertQuotes);
-    $("#new_line_button").on("click", insertNewLine);
-    $("#insert_asterisk_button").on("click", insertAsterisk);
-    $("#enable_input_helper").on("input", onEnableInputChange);
-    
-    // 注册设置变更事件监听
-    $("#enable_input_helper").on("input", onEnableInputChange);
-    $("#enable_asterisk_btn").on("input", onButtonVisibilityChange("asterisk"));
-    $("#enable_quotes_btn").on("input", onButtonVisibilityChange("quotes"));
-    $("#enable_parentheses_btn").on("input", onButtonVisibilityChange("parentheses"));
-    $("#enable_book_quotes1_btn").on("input", onButtonVisibilityChange("bookQuotes1"));
-    $("#enable_book_quotes2_btn").on("input", onButtonVisibilityChange("bookQuotes2"));
-    $("#enable_book_quotes3_btn").on("input", onButtonVisibilityChange("bookQuotes3"));
-    $("#enable_newline_btn").on("input", onButtonVisibilityChange("newline"));
-    $("#enable_user_btn").on("input", onButtonVisibilityChange("user"));
-    $("#enable_char_btn").on("input", onButtonVisibilityChange("char"));
+    try {
+        // Load settings HTML
+        const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
+        $("#extensions_settings2").append(settingsHtml);
 
+        // Load toolbar HTML
+        const toolbarHtml = await $.get(`${extensionFolderPath}/toolbar.html`);
+        // Insert toolbar - improved logic for placement
+        if ($("#quickreply_section").length) { // Target quick reply section if available
+            $("#quickreply_section").prepend(toolbarHtml); // Place before QR input
+            // Adjust styles if needed, e.g., margins on the toolbar or QR section
+            $("#input_helper_toolbar").css({ 'margin-bottom': '5px' });
+        } else if ($("#send_form").length) { // Fallback to send form
+            $("#send_form").prepend(toolbarHtml); // Place before the main send button/textarea container
+            $("#input_helper_toolbar").css({ 'margin-bottom': '5px' });
+        } else {
+            console.warn("Input Helper: Could not find suitable location to insert toolbar.");
+            // Optionally append somewhere less ideal as a last resort
+            // $("#chat_input_form_area").append(toolbarHtml);
+        }
 
-    // --- START: \n Replacement Logic ---
-    // 获取目标输入框
-    const $textarea = getMessageInput(); // 使用你代码中已有的 getMessageInput 函数
-    if ($textarea.length) {
-        // 监听输入事件
-        $textarea.on('input', function(event) {
-            // 如果插件被禁用，则不执行任何操作
-            if (!extension_settings[extensionName]?.enabled) return;
+        // --- START: \n Replacement Logic ---
+        const $textarea = getMessageInput(); // Get the primary textarea
+        if ($textarea.length) {
+            $textarea.on('input', function(event) {
+                // Do nothing if the plugin is disabled
+                if (!extension_settings[extensionName]?.enabled) return;
 
-            const textareaElement = this; // 当前触发事件的 textarea DOM 元素
-            let currentValue = textareaElement.value; // 获取当前文本内容
-            let cursorPosition = textareaElement.selectionStart; // 获取当前光标位置
-            let valueChanged = false; // 标记值是否被替换修改过
+                const textareaElement = this;
+                let currentValue = textareaElement.value;
+                let cursorPosition = textareaElement.selectionStart;
+                let valueChanged = false; // Flag to track if replacement happened
 
-            // 正则表达式：查找字面量的 '\n' (反斜杠 + n)
-            // (?<!\\) 确保前面没有另一个反斜杠，即排除 '\\n'
-            // \\ 匹配一个字面量反斜杠
-            // n 匹配字母 n
-            // g 全局匹配
-            const regex = /(?<!\\)\\n/g;
+                // Regex to find '\n' (literal backslash followed by 'n')
+                // Use /(?<!\\)\\n/g to match '\n' but NOT '\\n' (escaped backslash)
+                const regex = /(?<!\\)\\n/g;
+                // Explanation:
+                // (?<!\\) : Negative lookbehind - ensures the match is not preceded by a backslash.
+                // \\      : Matches a literal backslash (needs escaping in regex).
+                // n       : Matches the literal character 'n'.
+                // g       : Global flag - replace all occurrences.
 
-            // 检查当前值中是否存在匹配项
-            if (regex.test(currentValue)) {
-                let valueBeforeCursor = currentValue.substring(0, cursorPosition); // 获取光标前的文本
-                let replacementsBeforeCursor = 0; // 计数光标前发生了多少次替换
-                let match;
-                // 重置正则表达式的 lastIndex 以便重新迭代查找
-                regex.lastIndex = 0;
-                // 迭代查找光标前的匹配项并计数
-                while ((match = regex.exec(valueBeforeCursor)) !== null) {
-                    replacementsBeforeCursor++;
+                if (regex.test(currentValue)) {
+                    let valueBeforeCursor = currentValue.substring(0, cursorPosition);
+                    // Count matches strictly before the cursor's original position
+                    let replacementsBeforeCursor = 0;
+                    let match;
+                    // Reset regex lastIndex before iterating
+                    regex.lastIndex = 0;
+                    while ((match = regex.exec(valueBeforeCursor)) !== null) {
+                        replacementsBeforeCursor++;
+                    }
+                    // Reset regex lastIndex again for the replace operation
+                    regex.lastIndex = 0;
+
+                    // Replace all matched '\n' sequences with a real newline character '\n'
+                    let newValue = currentValue.replace(regex, '\n');
+
+                    // Optional: Handle explicitly escaped backslashes '\\n' -> '\n' if desired
+                    // Currently, the regex /(?<!\\)\\n/g leaves '\\n' untouched.
+                    // If you wanted '\\n' to become the literal '\n', you'd need another step:
+                    // newValue = newValue.replace(/\\\\n/g, '\\n'); // Literal \\n becomes literal \n
+
+                    if (newValue !== currentValue) {
+                        valueChanged = true;
+                        // Calculate the new cursor position. Each replacement reduces length by 1
+                        // ('\n' is 2 chars, '\n' is 1 char).
+                        let newCursorPosition = cursorPosition - replacementsBeforeCursor;
+
+                        // Update value first
+                        textareaElement.value = newValue;
+
+                        // Set the cursor position, potentially adjusting for the \n} case
+                        setTimeout(() => {
+                            let finalCursorPos = newCursorPosition;
+                            const currentValAfterTimeout = textareaElement.value;
+
+                            // FIX: Check for the specific \n} sequence at the calculated cursor position
+                            if (finalCursorPos > 0 &&
+                                currentValAfterTimeout[finalCursorPos - 1] === '\n' &&
+                                currentValAfterTimeout[finalCursorPos] === '}')
+                            {
+                                // Nudge the cursor one step forward to be after the '}'
+                                finalCursorPos++;
+                            }
+
+                            // Set the final cursor position
+                            textareaElement.selectionStart = finalCursorPos;
+                            textareaElement.selectionEnd = finalCursorPos;
+
+                        }, 0);
+
+                        // Trigger input event manually ONLY if value actually changed
+                        $(textareaElement).trigger('input');
+                    }
                 }
-                // 再次重置 lastIndex 以便用于 replace 操作
-                regex.lastIndex = 0;
+            });
+            // Updated console log message
+            console.log("Input Helper: Real-time \\n replacement listener attached (with \\n} fix).");
+        } else {
+            console.warn("Input Helper: Could not find target textarea for \\n replacement.");
+        }
+        // --- END: \n Replacement Logic ---
 
-                // 执行替换：将所有匹配的 '\n' 替换为真正的换行符 '\n'
-                let newValue = currentValue.replace(regex, '\n');
+        // Bind standard button clicks (Desktop)
+        // Mobile uses touchstart bound dynamically during button creation/rebinding
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (!isMobile) {
+            $("#input_helper_toolbar").on("click", ".input-helper-btn", function() {
+                const btnId = $(this).attr("id");
+                switch (btnId) {
+                    case 'input_asterisk_btn': insertAsterisk(); break;
+                    case 'input_quotes_btn': insertQuotes(); break;
+                    case 'input_parentheses_btn': insertParentheses(); break;
+                    case 'input_book_quotes1_btn': insertBookQuotes1(); break;
+                    case 'input_book_quotes2_btn': insertBookQuotes2(); break;
+                    case 'input_book_quotes3_btn': insertBookQuotes3(); break;
+                    case 'input_newline_btn': insertNewLine(); break; // Button action
+                    case 'input_user_btn': insertUserTag(); break;
+                    case 'input_char_btn': insertCharTag(); break;
+                    // Custom buttons clicks are handled by bindCustomSymbolEvent
+                }
+            });
+        }
+        // Note: bindCustomSymbolEvent handles both mobile and desktop clicks for custom buttons.
 
-                // 如果值确实发生了变化 (即确实进行了替换)
-                if (newValue !== currentValue) {
-                    valueChanged = true;
-                    // 计算新的光标位置：原始位置减去前面发生的替换次数
-                    // 因为 '\n' (2字符) 变成了 '\n' (1字符)，长度减 1
-                    let newCursorPosition = cursorPosition - replacementsBeforeCursor;
 
-                    // 先更新文本框的值
-                    textareaElement.value = newValue;
+        // Load settings and initialize UI elements
+        await loadSettings(); // Load settings first
 
-                    // 使用 setTimeout 来设置光标位置，确保在值更新后执行
-                    setTimeout(() => {
-                        let finalCursorPos = newCursorPosition; // 初始目标光标位置
-                        const currentValAfterTimeout = textareaElement.value; // 在 timeout 中重新获取值
+        // Setup settings panel interactions
+        $("#enable_input_helper").on("input", onEnableInputChange);
+        // Bind visibility checkboxes (binding done within createCustomSymbolSetting for custom ones)
+        $("#enable_asterisk_btn").on("input", onButtonVisibilityChange("asterisk"));
+        $("#enable_quotes_btn").on("input", onButtonVisibilityChange("quotes"));
+        $("#enable_parentheses_btn").on("input", onButtonVisibilityChange("parentheses"));
+        $("#enable_book_quotes1_btn").on("input", onButtonVisibilityChange("bookQuotes1"));
+        $("#enable_book_quotes2_btn").on("input", onButtonVisibilityChange("bookQuotes2"));
+        $("#enable_book_quotes3_btn").on("input", onButtonVisibilityChange("bookQuotes3"));
+        $("#enable_newline_btn").on("input", onButtonVisibilityChange("newline"));
+        $("#enable_user_btn").on("input", onButtonVisibilityChange("user"));
+        $("#enable_char_btn").on("input", onButtonVisibilityChange("char"));
 
-                        // 检查特殊情况：光标恰好在 \n 和 } 之间
-                        if (finalCursorPos > 0 &&
-                            currentValAfterTimeout[finalCursorPos - 1] === '\n' && // 前一个字符是换行符
-                            currentValAfterTimeout[finalCursorPos] === '}')     // 当前字符是右花括号
-                        {
-                            // 将光标向后移动一位，越过 '}'
-                            finalCursorPos++;
-                        }
+        // Setup add custom symbol button
+        $("#st_input_helper_settings").append(`
+            <div class="inline-drawer">
+                <div class="inline-drawer-toggle settings_block">
+                    <span>自定义符号管理</span>
+                </div>
+                <div class="inline-drawer-content">
+                     <div class="example-extension_block">
+                         <button id="add_custom_symbol_btn" class="menu_button">添加自定义符号</button>
+                     </div>
+                 </div>
+            </div>
+        `);
+        $("#add_custom_symbol_btn").on("click", () => showCustomSymbolDialog());
 
-                        // 设置最终的光标位置
-                        textareaElement.selectionStart = finalCursorPos;
-                        textareaElement.selectionEnd = finalCursorPos;
+        // Initialize sortable and shortcuts AFTER settings are loaded and elements exist
+        initSortable();
+        setupShortcutInputs(); // Ensure shortcut inputs are ready
 
-                    }, 0); // 延迟 0 毫秒执行
+        // Register global shortcut listener
+        $(document).on("keydown", handleGlobalShortcuts);
 
-                    // 如果值被修改了，手动触发一次 'input' 事件
-                    // 这有助于兼容依赖此事件的功能（如自动高度调整）
-                    $(textareaElement).trigger('input');
+        // Handle dialog keydowns (Enter/Escape)
+        $(document).on("keydown", function(e) {
+            if ($("#custom_symbol_dialog").length) {
+                if (e.key === "Escape") {
+                    $("#custom_symbol_dialog").remove();
+                } else if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+                    // Trigger save only if focus isn't on a multi-line input or button that handles Enter
+                    if ($(document.activeElement).is('input[type="text"], input[type="number"], select')) {
+                        e.preventDefault(); // Prevent form submission if it were a form
+                        $("#custom_symbol_save").trigger("click");
+                    }
                 }
             }
         });
-        // 在控制台输出日志，表明监听器已成功附加
-        console.log(`Input Helper (${extensionName}): Real-time \\n replacement listener attached.`);
-    } else {
-        // 如果找不到输入框，输出警告
-        console.warn(`Input Helper (${extensionName}): Could not find target textarea for \\n replacement.`);
-    }
-    // --- END: \n Replacement Logic ---
-    // 加载设置
-    await loadSettings();
-    
-    // 设置快捷键输入框
-    setupShortcutInputs();
-    
-    // 初始化排序功能
-    initSortable();
-    
-    // 注册全局快捷键事件
-    $(document).on("keydown", handleGlobalShortcuts);
-    
-    // 根据初始化设置显示或隐藏工具栏
-    if (!extension_settings[extensionName].enabled) {
-        $("#input_helper_toolbar").hide();
-    }
-    
-    // 添加添加自定义符号按钮
-    $("#integrated_button_settings").after(`
-        <div class="example-extension_block">
-            <button id="add_custom_symbol_btn" class="menu_button">添加自定义符号</button>
-        </div>
-    `);
-    
-    // 添加自定义符号按钮事件
-    $("#add_custom_symbol_btn").on("click", function() {
-        showCustomSymbolDialog();
-    });
-    
-    // 注册自定义符号对话框键盘事件处理
-    $(document).on("keydown", function(e) {
-        // 如果对话框正在显示且按下了Escape，关闭对话框
-        if ($("#custom_symbol_dialog").length && e.key === "Escape") {
-            $("#custom_symbol_dialog").remove();
+
+
+        // Final state check for toolbar visibility based on loaded settings
+        if (!extension_settings[extensionName].enabled) {
+            $("#input_helper_toolbar").hide();
+        } else {
+            updateButtonVisibility(); // Ensure correct buttons are shown/hidden initially
         }
-        
-        // 如果对话框正在显示且按下了Enter，模拟点击保存按钮
-        if ($("#custom_symbol_dialog").length && e.key === "Enter" && !e.ctrlKey && !e.shiftKey && !e.altKey) {
-            if ($(document.activeElement).is("input") && !$(document.activeElement).is("textarea")) {
-                $("#custom_symbol_save").click();
-            }
-        }
-    });
-    
-    console.log("输入助手插件已加载");
+
+        console.log(`Input Helper (${extensionName}) loaded successfully.`);
+
+    } catch (error) {
+        console.error(`Input Helper (${extensionName}) failed to load:`, error);
+    }
 });
