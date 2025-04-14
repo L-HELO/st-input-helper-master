@@ -755,7 +755,6 @@ function createCustomSymbolSetting(symbol, index) {
 }
 
 // 插入自定义符号
-// 插入自定义符号
 function insertCustomSymbol(symbol) {
     if (!extension_settings[extensionName].enabled) return;
 
@@ -768,10 +767,10 @@ function insertCustomSymbol(symbol) {
     const selectedText = text.substring(startPos, endPos);
     const afterText = text.substring(endPos);
 
-    // 处理符号中的\n换行符
+    // 处理符号中的\n换行符 - 将字符串中的\n转换为实际的换行符
     const processedSymbol = symbol.symbol.replace(/\\n/g, '\n');
 
-    // 插入符号
+    // 插入处理后的符号
     const newText = beforeText + processedSymbol + afterText;
     textarea.val(newText);
 
@@ -780,7 +779,6 @@ function insertCustomSymbol(symbol) {
 
     // 设置光标位置
     setTimeout(() => {
-        // 计算光标位置
         let cursorPos = startPos;
 
         if (symbol.cursorPos === "start") {
@@ -790,7 +788,6 @@ function insertCustomSymbol(symbol) {
         } else if (symbol.cursorPos === "middle") {
             cursorPos = startPos + Math.floor(insertedLength / 2);
         } else {
-            // 具体位置
             cursorPos = startPos + parseInt(symbol.cursorPos) || startPos;
         }
 
