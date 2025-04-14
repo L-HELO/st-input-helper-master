@@ -755,75 +755,50 @@ function createCustomSymbolSetting(symbol, index) {
 }
 
 // 插入自定义符号
-// 替换这个函数 // 修改后的 insertCustomSymbol 函数 
+// 插入自定义符号
 function insertCustomSymbol(symbol) {
     if (!extension_settings[extensionName].enabled) return;
-    
-    const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart"); 
-    const endPos = textarea.prop("selectionEnd"); 
-    const text = textarea.val(); 
-    
-    const beforeText = text.substring(0,  startPos);
-    const selectedText = text.substring(startPos,  endPos);
-    const afterText = text.substring(endPos); 
-    
-    // 处理符号中的 \n 换行符 
-    let processedSymbol = symbol.symbol; 
-    
-    // 检查符号中是否包含 \n 
-    if (processedSymbol.includes("\\n"))  {
-        // 分割符号为两部分：\n前和\n后 
-        const parts = processedSymbol.split("\\n"); 
-        
-        // 第一部分插入到当前光标位置 
-        const firstPart = parts[0];
-        // 第二部分将在换行后插入 
-        const secondPart = parts.slice(1).join("\\n"); 
-        
-        // 查找当前行的末尾位置（模仿insertNewLine的行为）
-        let lineEnd = text.indexOf("\n",  startPos);
-        if (lineEnd === -1) {
-            lineEnd = text.length; 
-        }
-        
-        // 构建新文本：第一部分 + 换行 + 第二部分 
-        const newText = beforeText + firstPart + "\n" + secondPart + afterText;
-        textarea.val(newText); 
-        
-        // 设置光标位置在换行后的第二部分开始处 
-        setTimeout(() => {
-            const newCursorPos = startPos + firstPart.length  + 1; // +1 for the newline 
-            textarea.prop("selectionStart",  newCursorPos);
-            textarea.prop("selectionEnd",  newCursorPos);
-            textarea.focus(); 
-        }, 0);
-    } else {
-        // 没有换行符的情况，保持原样插入 
-        const newText = beforeText + processedSymbol + afterText;
-        textarea.val(newText); 
-        
-        // 设置光标位置 
-        setTimeout(() => {
-            let cursorPos = startPos;
-            
-            if (symbol.cursorPos  === "start") {
-                cursorPos = startPos;
-            } else if (symbol.cursorPos  === "end") {
-                cursorPos = startPos + processedSymbol.length; 
-            } else if (symbol.cursorPos  === "middle") {
-                cursorPos = startPos + Math.floor(processedSymbol.length  / 2);
-            } else {
-                cursorPos = startPos + parseInt(symbol.cursorPos)  || startPos;
-            }
-            
-            textarea.prop("selectionStart",  cursorPos);
-            textarea.prop("selectionEnd",  cursorPos);
-            textarea.focus(); 
-        }, 0);
-    }
-}
 
+    const textarea = getMessageInput();
+    const startPos = textarea.prop("selectionStart");
+    const endPos = textarea.prop("selectionEnd");
+    const text = textarea.val();
+
+    const beforeText = text.substring(0, startPos);
+    const selectedText = text.substring(startPos, endPos);
+    const afterText = text.substring(endPos);
+
+    // 处理符号中的\n换行符
+    const processedSymbol = symbol.symbol.replace(/\\n/g, '\n');
+
+    // 插入符号
+    const newText = beforeText + processedSymbol + afterText;
+    textarea.val(newText);
+
+    // 计算实际插入后的光标位置
+    const insertedLength = processedSymbol.length;
+
+    // 设置光标位置
+    setTimeout(() => {
+        // 计算光标位置
+        let cursorPos = startPos;
+
+        if (symbol.cursorPos === "start") {
+            cursorPos = startPos;
+        } else if (symbol.cursorPos === "end") {
+            cursorPos = startPos + insertedLength;
+        } else if (symbol.cursorPos === "middle") {
+            cursorPos = startPos + Math.floor(insertedLength / 2);
+        } else {
+            // 具体位置
+            cursorPos = startPos + parseInt(symbol.cursorPos) || startPos;
+        }
+
+        textarea.prop("selectionStart", cursorPos);
+        textarea.prop("selectionEnd", cursorPos);
+        textarea.focus();
+    }, 0);
+}
 // 编辑自定义符号
 function editCustomSymbol(index) {
     const symbols = extension_settings[extensionName].customSymbols;
@@ -917,9 +892,8 @@ function rebindMobileEventListeners() {
 }
 
 // 显示自定义符号对话框
-// 替换这个函数 
 function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
-    // 创建对话框 - 修改样式以正确应用主题颜色 
+    // 创建对话框 - 修改样式以正确应用主题颜色
     const dialog = $(`
         <div id="custom_symbol_dialog" class="custom-symbol-dialog">
             <div class="custom-symbol-dialog-content">
@@ -927,26 +901,25 @@ function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
                 <div class="custom-symbol-form">
                     <div class="form-group">
                         <label for="custom_symbol_name">名称：</label>
-                        <input type="text" id="custom_symbol_name" value="${existingSymbol ? existingSymbol.name  : ''}" placeholder="如：方括号">
+                        <input type="text" id="custom_symbol_name" value="${existingSymbol ? existingSymbol.name : ''}" placeholder="如：方括号">
                     </div>
                     <div class="form-group">
                         <label for="custom_symbol_symbol">符号：</label>
-                        <input type="text" id="custom_symbol_symbol" value="${existingSymbol ? existingSymbol.symbol  : ''}" placeholder="如：[] 或 <主题>\n (\\n表示换行)">
-                        <div class="hint">提示：使用 \\n 表示换行符</div>
+                        <input type="text" id="custom_symbol_symbol" value="${existingSymbol ? existingSymbol.symbol : ''}" placeholder="如：[]">
                     </div>
                     <div class="form-group">
                         <label for="custom_symbol_display">显示文本：</label>
-                        <input type="text" id="custom_symbol_display" value="${existingSymbol ? existingSymbol.display  : ''}" placeholder="如：[]">
+                        <input type="text" id="custom_symbol_display" value="${existingSymbol ? existingSymbol.display : ''}" placeholder="如：[]">
                     </div>
                     <div class="form-group">
                         <label for="custom_symbol_cursor">光标位置：</label>
                         <select id="custom_symbol_cursor">
-                            <option value="start" ${existingSymbol && existingSymbol.cursorPos  === 'start' ? 'selected' : ''}>开始</option>
-                            <option value="middle" ${!existingSymbol || existingSymbol.cursorPos  === 'middle' ? 'selected' : ''}>中间</option>
-                            <option value="end" ${existingSymbol && existingSymbol.cursorPos  === 'end' ? 'selected' : ''}>结尾</option>
-                            <option value="custom" ${existingSymbol && !['start', 'middle', 'end'].includes(existingSymbol.cursorPos)  ? 'selected' : ''}>自定义</option>
+                            <option value="start" ${existingSymbol && existingSymbol.cursorPos === 'start' ? 'selected' : ''}>开始</option>
+                            <option value="middle" ${!existingSymbol || existingSymbol.cursorPos === 'middle' ? 'selected' : ''}>中间</option>
+                            <option value="end" ${existingSymbol && existingSymbol.cursorPos === 'end' ? 'selected' : ''}>结尾</option>
+                            <option value="custom" ${existingSymbol && !['start', 'middle', 'end'].includes(existingSymbol.cursorPos) ? 'selected' : ''}>自定义</option>
                         </select>
-                        <input type="number" id="custom_symbol_cursor_pos" value="${existingSymbol && !['start', 'middle', 'end'].includes(existingSymbol.cursorPos)  ? existingSymbol.cursorPos  : '1'}" min="0" style="display: ${existingSymbol && !['start', 'middle', 'end'].includes(existingSymbol.cursorPos)  ? 'inline-block' : 'none'}; width: 60px;">
+                        <input type="number" id="custom_symbol_cursor_pos" value="${existingSymbol && !['start', 'middle', 'end'].includes(existingSymbol.cursorPos) ? existingSymbol.cursorPos : '1'}" min="0" style="display: ${existingSymbol && !['start', 'middle', 'end'].includes(existingSymbol.cursorPos) ? 'inline-block' : 'none'}; width: 60px;">
                     </div>
                 </div>
                 <div class="custom-symbol-buttons">
@@ -957,10 +930,10 @@ function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
         </div>
     `);
     
-    // 添加到页面 
+    // 添加到页面
     $("body").append(dialog);
     
-    // 处理自定义光标位置选择 
+    // 处理自定义光标位置选择
     $("#custom_symbol_cursor").on("change", function() {
         if ($(this).val() === "custom") {
             $("#custom_symbol_cursor_pos").show();
@@ -969,12 +942,12 @@ function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
         }
     });
     
-    // 取消按钮事件 
+    // 取消按钮事件
     $("#custom_symbol_cancel").on("click", function() {
-        dialog.remove(); 
+        dialog.remove();
     });
     
-    // 保存按钮事件 
+    // 保存按钮事件
     $("#custom_symbol_save").on("click", function() {
         const name = $("#custom_symbol_name").val().trim();
         const symbol = $("#custom_symbol_symbol").val();
@@ -985,40 +958,40 @@ function showCustomSymbolDialog(existingSymbol = null, editIndex = -1) {
             cursorPos = $("#custom_symbol_cursor_pos").val();
         }
         
-        // 验证输入 
+        // 验证输入
         if (!name || !symbol) {
             alert("请输入名称和符号！");
             return;
         }
         
-        // 创建符号对象 
+        // 创建符号对象
         const symbolObj = {
             name: name,
             symbol: symbol,
             display: display,
-            cursorPos: cursorPos 
+            cursorPos: cursorPos
         };
         
-        // 保存到设置 
+        // 保存到设置
         if (editIndex >= 0) {
-            // 编辑现有符号 
+            // 编辑现有符号
             extension_settings[extensionName].customSymbols[editIndex] = symbolObj;
         } else {
-            // 添加新符号 
+            // 添加新符号
             if (!extension_settings[extensionName].customSymbols) {
                 extension_settings[extensionName].customSymbols = [];
             }
-            extension_settings[extensionName].customSymbols.push(symbolObj); 
+            extension_settings[extensionName].customSymbols.push(symbolObj);
         }
         
-        // 保存设置 
+        // 保存设置
         saveSettingsDebounced();
         
-        // 重新加载自定义按钮 
+        // 重新加载自定义按钮
         loadCustomSymbolButtons();
         
-        // 关闭对话框 
-        dialog.remove(); 
+        // 关闭对话框
+        dialog.remove();
     });
 }
 
