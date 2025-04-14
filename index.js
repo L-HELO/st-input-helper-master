@@ -753,49 +753,7 @@ function createCustomSymbolSetting(symbol, index) {
         deleteCustomSymbol(index);
     });
 }
-
-// 插入自定义符号
-function insertCustomSymbol(symbol) {
-    if (!extension_settings[extensionName].enabled) return;
-
-    const textarea = getMessageInput();
-    const startPos = textarea.prop("selectionStart");
-    const endPos = textarea.prop("selectionEnd");
-    const text = textarea.val();
-
-    const beforeText = text.substring(0, startPos);
-    const selectedText = text.substring(startPos, endPos);
-    const afterText = text.substring(endPos);
-
-    // 处理符号中的\n换行符 - 将字符串中的\n转换为实际的换行符
-    const processedSymbol = symbol.symbol.replace(/\\n/g, '\n');
-
-    // 插入处理后的符号
-    const newText = beforeText + processedSymbol + afterText;
-    textarea.val(newText);
-
-    // 计算实际插入后的光标位置
-    const insertedLength = processedSymbol.length;
-
-    // 设置光标位置
-    setTimeout(() => {
-        let cursorPos = startPos;
-
-        if (symbol.cursorPos === "start") {
-            cursorPos = startPos;
-        } else if (symbol.cursorPos === "end") {
-            cursorPos = startPos + insertedLength;
-        } else if (symbol.cursorPos === "middle") {
-            cursorPos = startPos + Math.floor(insertedLength / 2);
-        } else {
-            cursorPos = startPos + parseInt(symbol.cursorPos) || startPos;
-        }
-
-        textarea.prop("selectionStart", cursorPos);
-        textarea.prop("selectionEnd", cursorPos);
-        textarea.focus();
-    }, 0);
-}
+insertCustomSymbol
 // 编辑自定义符号
 function editCustomSymbol(index) {
     const symbols = extension_settings[extensionName].customSymbols;
