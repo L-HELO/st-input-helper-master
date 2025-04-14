@@ -826,7 +826,7 @@ jQuery(async () => {
             // $("#chat_input_form_area").append(toolbarHtml);
         }
 
-// --- START: /n Replacement Logic ---
+        // --- START: \n Replacement Logic ---
         const $textarea = getMessageInput(); // Get the primary textarea
         if ($textarea.length) {
             $textarea.on('input', function(event) {
@@ -834,43 +834,55 @@ jQuery(async () => {
                 if (!extension_settings[extensionName]?.enabled) return;
 
                 const textareaElement = this;
-                let currentValue = textareaElement.value; // Use value property directly
+                let currentValue = textareaElement.value;
                 let cursorPosition = textareaElement.selectionStart;
                 let valueChanged = false; // Flag to track if replacement happened
 
-                // Regex to find '/n' that isn't escaped ('\\/n')
-                const regex = /(?<!\\)\/n/g;
+                // Regex to find '\n' (literal backslash followed by 'n')
+                // Use /(?<!\\)\\n/g to match '\n' but NOT '\\n' (escaped backslash)
+                const regex = /(?<!\\)\\n/g;
+                // Explanation:
+                // (?<!\\) : Negative lookbehind - ensures the match is not preceded by a backslash.
+                // \\      : Matches a literal backslash (needs escaping in regex).
+                // n       : Matches the literal character 'n'.
+                // g       : Global flag - replace all occurrences.
 
                 if (regex.test(currentValue)) {
                     let valueBeforeCursor = currentValue.substring(0, cursorPosition);
-                    let replacementsBeforeCursor = (valueBeforeCursor.match(regex) || []).length;
+                    // Count matches strictly before the cursor's original position
+                    let replacementsBeforeCursor = 0;
+                    let match;
+                    // Reset regex lastIndex before iterating
+                    regex.lastIndex = 0;
+                    while ((match = regex.exec(valueBeforeCursor)) !== null) {
+                        replacementsBeforeCursor++;
+                    }
+                    // Reset regex lastIndex again for the replace operation
+                    regex.lastIndex = 0;
 
-                    // Replace all non-escaped '/n' with '\n'
+                    // Replace all matched '\n' sequences with a real newline character '\n'
                     let newValue = currentValue.replace(regex, '\n');
-                    // Optional: Handle escaped '\\/n' -> '/n'
-                    // newValue = newValue.replace(/\\\\\/n/g, '/n');
+
+                    // Optional: Handle explicitly escaped backslashes '\\n' -> '\n' if desired
+                    // Currently, the regex /(?<!\\)\\n/g leaves '\\n' untouched.
+                    // If you wanted '\\n' to become the literal '\n', you'd need another step:
+                    // newValue = newValue.replace(/\\\\n/g, '\\n'); // Literal \\n becomes literal \n
 
                     if (newValue !== currentValue) {
                         valueChanged = true;
-                        // Calculate the base new cursor position based *only* on the replacement
-                        // Cursor was originally *after* /n (length 2)
-                        // It should now be *after* \n (length 1)
-                        // The difference is 1 position backward for each replacement before the cursor
+                        // Calculate the new cursor position. Each replacement reduces length by 1
+                        // ('\n' is 2 chars, '\n' is 1 char).
                         let newCursorPosition = cursorPosition - replacementsBeforeCursor;
 
                         // Update value first
                         textareaElement.value = newValue;
 
-                        // Now, set the cursor position, potentially adjusting for the \n} case
-                        // Use timeout to ensure cursor set after value update and potential browser redraws
+                        // Set the cursor position, potentially adjusting for the \n} case
                         setTimeout(() => {
                             let finalCursorPos = newCursorPosition;
-                            const currentValAfterTimeout = textareaElement.value; // Get value again in case something else changed
+                            const currentValAfterTimeout = textareaElement.value;
 
-                            // *** FIX: Check for the specific \n} sequence at the calculated cursor position ***
-                            // This happens if the user types '}' immediately after '/n' was replaced.
-                            // Check if the character *before* the calculated position is \n
-                            // and the character *at* the calculated position is }
+                            // FIX: Check for the specific \n} sequence at the calculated cursor position
                             if (finalCursorPos > 0 &&
                                 currentValAfterTimeout[finalCursorPos - 1] === '\n' &&
                                 currentValAfterTimeout[finalCursorPos] === '}')
@@ -885,35 +897,17 @@ jQuery(async () => {
 
                         }, 0);
 
-                        // Trigger input event manually ONLY if value actually changed by replacement
-                        // Helps ensure compatibility with features like auto-resize
+                        // Trigger input event manually ONLY if value actually changed
                         $(textareaElement).trigger('input');
                     }
                 }
-
-                // --- Optional: Add a check specifically for the case where '}' was just typed after a '\n' ---
-                // This is an alternative/additional check that might catch edge cases,
-                // but the primary fix above within the timeout should handle the described scenario.
-                /*
-                if (!valueChanged && currentValue.length > 0 && cursorPosition > 0) {
-                    // Check if the last typed character (inferred) might be '}'
-                    // This is heuristic and less reliable than the timeout check
-                    const charBeforeCursor = currentValue[cursorPosition - 1];
-                    const charFurtherBefore = currentValue[cursorPosition - 2];
-
-                    if (charBeforeCursor === '}' && charFurtherBefore === '\n') {
-                       // Potentially nudge cursor, but be careful not to interfere with normal '}' typing
-                       // console.log("Detected potential \n} sequence typed");
-                       // It's generally better to let the timeout logic handle the correction
-                    }
-                }
-                */
             });
-            console.log("Input Helper: Real-time /n replacement listener attached (with \\n} fix).");
+            // Updated console log message
+            console.log("Input Helper: Real-time \\n replacement listener attached (with \\n} fix).");
         } else {
-            console.warn("Input Helper: Could not find target textarea for /n replacement.");
+            console.warn("Input Helper: Could not find target textarea for \\n replacement.");
         }
-        // --- END: /n Replacement Logic ---
+        // --- END: \n Replacement Logic ---
 
         // Bind standard button clicks (Desktop)
         // Mobile uses touchstart bound dynamically during button creation/rebinding
